@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import fs from "fs";
 import path from "path";
+import puppeteer from "puppeteer";
 
 const processQuestion = (data: any, depth: number): string => {
   const indent0 = "  ".repeat(depth);
@@ -111,7 +112,16 @@ const toHtml = (document: any, depth: number): string => {
   const indent0 = "  ".repeat(depth);
   const indent1 = "  ".repeat(depth + 1);
   const indent2 = "  ".repeat(depth + 2);
-  let html = `${indent0}<div>\n`;
+  let html = "";
+  if (depth == 0) {
+    html += `<html>\n`;
+    html += `<style type="text/css">\n`;
+    html += `img { display: none; }</style>\n`;
+    html += `video { display: none; }</style>\n`;
+    html += `</style>\n`;
+    html += `<body>\n`;
+  }
+  html += `${indent0}<div>\n`;
   if (document.data != "{}") {
     const data = JSON.parse(document.data);
     if (data.display_name) {
@@ -144,7 +154,29 @@ const toHtml = (document: any, depth: number): string => {
     }
   }
   html += `${indent0}</div>\n`;
+  if (depth == 0) {
+    html += `</body></html>\n`;
+  }
   return html;
+};
+
+const htmlToPdf = async (inputFilePath: string, outputFilePath: string) => {
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
+  await page.goto(`file://${inputFilePath}`, {
+    timeout: 0,
+  });
+  await page.pdf({
+    path: outputFilePath,
+    timeout: 0,
+  });
+  await browser.close();
+};
+
+const time = async (fn: () => Promise<void>) => {
+  const now = performance.now();
+  await fn();
+  return performance.now() - now;
 };
 
 const htmlify = async (o: Options) => {
@@ -165,14 +197,27 @@ const htmlify = async (o: Options) => {
     console.log(chalk.green(`Parsing ${inputFileName}...`));
     const inputObject = JSON.parse(inputFile);
 
+    console.log(chalk.green(`Converting ${inputFileName} to ${outputFileName}...`));
+    const outputHtml = toHtml(inputObject["learning_material_data"], 0);
+
     console.log(chalk.green(`Opening ${outputFileName}...`));
     const outputFile = await fs.promises.open(path.join(outputPath, outputFileName), "w");
     try {
       console.log(chalk.green(`Writing ${outputFileName}...`));
-      await outputFile.write(toHtml(inputObject["learning_material_data"], 0));
+      await outputFile.write(outputHtml);
 
       console.log(chalk.green(`Closing ${outputFileName}...`));
       await outputFile.close();
+
+      if (o.outputPdf) {
+        const outputFileNamePdf = outputFileName.replace(".html", ".pdf");
+
+        console.log(chalk.green(`Converting ${outputFileName} to ${outputFileNamePdf}...`));
+        const elapsed = await time(async () => {
+          await htmlToPdf(path.join(outputPath, outputFileName), path.join(outputPath, outputFileNamePdf));
+        });
+        console.log(chalk.green(`Conversion took ${(elapsed / 1000).toLocaleString()} seconds.`));
+      }
     } catch (error) {
       console.log(chalk.red(`Error: ${error}`));
       outputFile.close();
