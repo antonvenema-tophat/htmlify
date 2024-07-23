@@ -116,8 +116,9 @@ const toHtml = (document: any, depth: number): string => {
   if (depth == 0) {
     html += `<html>\n`;
     html += `<style type="text/css">\n`;
-    html += `img { display: none; }</style>\n`;
-    html += `video { display: none; }</style>\n`;
+    html += `img { display: none; }\n`;
+    html += `iframe { display: none; }\n`;
+    html += `video { display: none; }\n`;
     html += `</style>\n`;
     html += `<body>\n`;
   }
@@ -126,6 +127,10 @@ const toHtml = (document: any, depth: number): string => {
     const data = JSON.parse(document.data);
     if (data.display_name) {
       html += `${indent1}<h1 class="display-name">${data.display_name}</h1>\n`;
+    }
+    if (data.tag_text != undefined) {
+      data.content = data.tag_text;
+      delete data.tag_text;
     }
     if (data.content) {
       html += `${indent1}<div class="content">\n`;
@@ -167,7 +172,9 @@ const htmlToPdf = async (inputFilePath: string, outputFilePath: string) => {
     timeout: 0,
   });
   await page.pdf({
+    displayHeaderFooter: false,
     path: outputFilePath,
+    tagged: false,
     timeout: 0,
   });
   await browser.close();
