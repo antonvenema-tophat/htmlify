@@ -2,6 +2,7 @@ import chalk from "chalk";
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer";
+import sanitizeFilename from "sanitize-filename";
 
 const processQuestion = (data: any, depth: number): string => {
   const indent0 = "  ".repeat(depth);
@@ -165,6 +166,25 @@ const toHtml = (document: any, depth: number): string => {
   return html;
 };
 
+const toHtmls = (document: any, path: string) => {
+  if (document.type == "COURSE") {
+    return (document.children as any[]).map((x: any): any[] => toHtmls(x, path)).flat();
+  }
+
+  const data = JSON.parse(document.data);
+  if (document.type == "FOLDER") {
+    return (document.children as any[]).map((x: any): any[] => toHtmls(x, `${path}${sanitizeFilename(data.display_name)}/`)).flat();
+  }
+
+  if (document.type == "CONTAINER") {
+    return [{
+      path: `${path}${sanitizeFilename(data.display_name)}.html`,
+      html: toHtml(document, 0),
+    }];
+  }
+  return [];
+};
+
 const htmlToPdf = async (inputFilePath: string, outputFilePath: string) => {
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
@@ -191,46 +211,81 @@ const htmlify = async (o: Options) => {
   const outputPath = path.join(__dirname, o.outputPath);
 
   console.log(chalk.green("Testing output directory..."));
-  try { await fs.promises.mkdir(outputPath); } catch { }
+  try { await fs.promises.mkdir(outputPath, { recursive: true }); } catch { }
+
+  if (o.outputClean) {
+    console.log(chalk.green("Cleaning output directory..."));
+    for (const outputFileName of await fs.promises.readdir(outputPath)) {
+      await fs.promises.rm(path.join(outputPath, outputFileName), { recursive: true });
+    }
+  }
+
+  console.log();
+  console.log(chalk.blue.bold("JSON --> HTML"));
 
   for (const inputFileName of await fs.promises.readdir(inputPath)) {
     if (!inputFileName.endsWith(".json")) continue;
-    const outputFileName = inputFileName.replace(".json", ".html");
 
     console.log();
-    console.log(chalk.green(`Reading ${inputFileName}...`));
+    console.log(chalk.green.bold(inputFileName));
+    console.log(chalk.green(`Reading...`));
     const inputFile = await fs.promises.readFile(path.join(inputPath, inputFileName), "utf-8");
 
-    console.log(chalk.green(`Parsing ${inputFileName}...`));
-    const inputObject = JSON.parse(inputFile);
+    console.log(chalk.green(`Parsing...`));
+    const document = JSON.parse(inputFile)["learning_material_data"];
 
-    console.log(chalk.green(`Converting ${inputFileName} to ${outputFileName}...`));
-    const outputHtml = toHtml(inputObject["learning_material_data"], 0);
-
-    console.log(chalk.green(`Opening ${outputFileName}...`));
-    const outputFile = await fs.promises.open(path.join(outputPath, outputFileName), "w");
-    try {
-      console.log(chalk.green(`Writing ${outputFileName}...`));
-      await outputFile.write(outputHtml);
-
-      console.log(chalk.green(`Closing ${outputFileName}...`));
-      await outputFile.close();
-
-      if (o.outputPdf) {
-        const outputFileNamePdf = outputFileName.replace(".html", ".pdf");
-
-        console.log(chalk.green(`Converting ${outputFileName} to ${outputFileNamePdf}...`));
-        const elapsed = await time(async () => {
-          await htmlToPdf(path.join(outputPath, outputFileName), path.join(outputPath, outputFileNamePdf));
-        });
-        console.log(chalk.green(`Conversion took ${(elapsed / 1000).toLocaleString()} seconds.`));
+    if (o.outputSplit) {
+      console.log(chalk.green(`Generating HTML...`));
+      const outputHtmls = toHtmls(document, "/");
+      for (const outputHtml of outputHtmls) {
+        console.log(chalk.green.italic(outputHtml.path));
+        const outputFilePath = path.join(outputPath, inputFileName.replace(".json", ""), outputHtml.path);
+        try { await fs.promises.mkdir(path.dirname(outputFilePath), { recursive: true }); } catch { }
+        const outputFile = await fs.promises.open(outputFilePath, "w");
+        try {
+          await outputFile.write(outputHtml.html);
+          await outputFile.close();
+        } catch (error) {
+          console.log(chalk.red(`Error: ${error}`));
+          outputFile.close();
+          await fs.promises.rm(outputFilePath);
+        }
       }
-    } catch (error) {
-      console.log(chalk.red(`Error: ${error}`));
-      outputFile.close();
+    } else {
+      const outputFileName = inputFileName.replace(".json", ".html");
 
-      console.log(chalk.red(`Deleting ${outputFileName}...`));
-      await fs.promises.rm(path.join(outputPath, outputFileName));
+      console.log(chalk.green(`Generating HTML...`));
+      const outputHtml = toHtml(document, 0);
+      console.log(chalk.green.italic(outputFileName));
+      const outputFilePath = path.join(outputPath, outputFileName);
+      const outputFile = await fs.promises.open(outputFilePath, "w");
+      try {
+        await outputFile.write(outputHtml);
+        await outputFile.close();
+      } catch (error) {
+        console.log(chalk.red(`Error: ${error}`));
+        outputFile.close();
+        await fs.promises.rm(outputFilePath);
+      }
+    }
+  }
+
+  if (o.outputPdf) {
+    console.log();
+    console.log(chalk.blue.bold("HTML --> PDF"));
+
+    for (const outputFileName of await fs.promises.readdir(outputPath, { recursive: true, })) {
+      if (!outputFileName.endsWith(".html")) continue;
+      const outputFileNamePdf = outputFileName.replace(".html", ".pdf");
+
+      console.log();
+      console.log(chalk.green.bold(outputFileName));
+      console.log(chalk.green(`Generating PDF...`));
+      console.log(chalk.green.italic(outputFileNamePdf));
+      const elapsed = await time(async () => {
+        await htmlToPdf(path.join(outputPath, outputFileName), path.join(outputPath, outputFileNamePdf));
+      });
+      console.log(chalk.green(`Conversion took ${(elapsed / 1000).toLocaleString()} seconds.`));
     }
   }
 };
