@@ -2,7 +2,10 @@ import chalk from "chalk";
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer";
+import readline from "node:readline/promises";
 import sanitizeFilename from "sanitize-filename";
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 const processQuestion = (data: any, depth: number): string => {
   const indent0 = "  ".repeat(depth);
@@ -278,14 +281,23 @@ const htmlify = async (o: Options) => {
       if (!outputFileName.endsWith(".html")) continue;
       const outputFileNamePdf = outputFileName.replace(".html", ".pdf");
 
-      console.log();
-      console.log(chalk.green.bold(outputFileName));
-      console.log(chalk.green(`Generating PDF...`));
-      console.log(chalk.green.italic(outputFileNamePdf));
-      const elapsed = await time(async () => {
-        await htmlToPdf(path.join(outputPath, outputFileName), path.join(outputPath, outputFileNamePdf));
-      });
-      console.log(chalk.green(`Conversion took ${(elapsed / 1000).toLocaleString()} seconds.`));
+      while (true) {
+        try {
+          console.log();
+          console.log(chalk.green.bold(outputFileName));
+          console.log(chalk.green(`Generating PDF...`));
+          console.log(chalk.green.italic(outputFileNamePdf));
+          const elapsed = await time(async () => {
+            await htmlToPdf(path.join(outputPath, outputFileName), path.join(outputPath, outputFileNamePdf));
+          });
+          console.log(chalk.green(`Conversion took ${(elapsed / 1000).toLocaleString()} seconds.`));
+          break;
+        } catch (error) {
+          console.log(chalk.red(`Error: ${error}`));
+          const retry = await rl.question(chalk.blue("Try again? (y/n) ")) == "y";
+          if (!retry) break;
+        }
+      }
     }
   }
 };
