@@ -2,10 +2,7 @@ import chalk from "chalk";
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer";
-import readline from "node:readline/promises";
 import sanitizeFilename from "sanitize-filename";
-
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 const processQuestion = (data: any, depth: number): string => {
   const indent0 = "  ".repeat(depth);
@@ -176,12 +173,12 @@ const toHtmls = (document: any, path: string) => {
 
   const data = JSON.parse(document.data);
   if (document.type == "FOLDER") {
-    return (document.children as any[]).map((x: any): any[] => toHtmls(x, `${path}${sanitizeFilename(data.display_name)}/`)).flat();
+    return (document.children as any[]).map((x: any): any[] => toHtmls(x, `${path}${sanitizeFilename(data.display_name.trim())}/`)).flat();
   }
 
   if (document.type == "CONTAINER") {
     return [{
-      path: `${path}${sanitizeFilename(data.display_name)}.html`,
+      path: `${path}${sanitizeFilename(data.display_name.trim())}.html`,
       html: toHtml(document, 0),
     }];
   }
@@ -190,23 +187,20 @@ const toHtmls = (document: any, path: string) => {
 
 const htmlToPdf = async (inputFilePath: string, outputFilePath: string) => {
   const browser = await puppeteer.launch();
-  const page = await browser.newPage();
-  await page.goto(`file://${inputFilePath}`, {
-    timeout: 0,
-  });
-  await page.pdf({
-    displayHeaderFooter: false,
-    path: outputFilePath,
-    tagged: false,
-    timeout: 0,
-  });
-  await browser.close();
-};
-
-const time = async (fn: () => Promise<void>) => {
-  const now = performance.now();
-  await fn();
-  return performance.now() - now;
+  try {
+    const page = await browser.newPage();
+    await page.goto(`file://${inputFilePath}`, {
+      timeout: 0,
+    });
+    await page.pdf({
+      displayHeaderFooter: false,
+      path: outputFilePath,
+      tagged: false,
+      timeout: 0,
+    });
+  } finally {
+    await browser.close();
+  }
 };
 
 const htmlify = async (o: Options) => {
@@ -252,6 +246,7 @@ const htmlify = async (o: Options) => {
           console.log(chalk.red(`Error: ${error}`));
           outputFile.close();
           await fs.promises.rm(outputFilePath);
+          throw error;
         }
       }
     } else {
@@ -266,9 +261,10 @@ const htmlify = async (o: Options) => {
         await outputFile.write(outputHtml);
         await outputFile.close();
       } catch (error) {
-        console.log(chalk.red(`Error: ${error}`));
+        console.log(chalk.red(error));
         outputFile.close();
-        await fs.promises.rm(outputFilePath);
+        try { await fs.promises.rm(outputFilePath); } catch { }
+        throw error;
       }
     }
   }
@@ -281,22 +277,22 @@ const htmlify = async (o: Options) => {
       if (!outputFileName.endsWith(".html")) continue;
       const outputFileNamePdf = outputFileName.replace(".html", ".pdf");
 
-      while (true) {
-        try {
-          console.log();
-          console.log(chalk.green.bold(outputFileName));
-          console.log(chalk.green(`Generating PDF...`));
-          console.log(chalk.green.italic(outputFileNamePdf));
-          const elapsed = await time(async () => {
-            await htmlToPdf(path.join(outputPath, outputFileName), path.join(outputPath, outputFileNamePdf));
-          });
-          console.log(chalk.green(`Conversion took ${(elapsed / 1000).toLocaleString()} seconds.`));
-          break;
-        } catch (error) {
-          console.log(chalk.red(`Error: ${error}`));
-          const retry = await rl.question(chalk.blue("Try again? (y/n) ")) == "y";
-          if (!retry) break;
-        }
+      console.log();
+      console.log(chalk.green.bold(outputFileName));
+      const outputFilePathPdf = path.join(outputPath, outputFileNamePdf);
+      if (o.continue && fs.existsSync(outputFilePathPdf)) {
+        console.log(chalk.green(`Skipping PDF...`));
+        console.log(chalk.green.italic(outputFileNamePdf));
+        continue;
+      }
+      console.log(chalk.green(`Generating PDF...`));
+      console.log(chalk.green.italic(outputFileNamePdf));
+      try {
+        await htmlToPdf(path.join(outputPath, outputFileName), outputFilePathPdf);
+      } catch (error) {
+        console.log(chalk.red(error));
+        try { await fs.promises.rm(outputFilePathPdf); } catch { }
+        throw error;
       }
     }
   }
