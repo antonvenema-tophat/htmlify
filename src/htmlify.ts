@@ -11,9 +11,11 @@ const processQuestion = (data: any, depth: number): string => {
   const indent3 = "  ".repeat(depth + 3);
   const indent4 = "  ".repeat(depth + 4);
   const indent5 = "  ".repeat(depth + 5);
-  let html = `${indent0}<div class="question">\n`;
-  html += `${indent1}<span class="heading">Question:</span>\n`;
-  html += `${indent1}<span class="text">${data.question}</span>\n`;
+  let html = `${indent0}<div class="question-answer">\n`;
+  html += `${indent1}<div class="question">\n`;
+  html += `${indent2}<span class="heading">Question:</span>\n`;
+  html += `${indent2}<span class="text">${data.question.replaceAll("\\_", "_")}</span>\n`;
+  html += `${indent1}</div>\n`;
   html += `${indent1}<div class="answer">\n`;
   if (data.choices?.length) {
     html += `${indent2}<div class="choices">\n`;
@@ -101,15 +103,20 @@ const processQuestion = (data: any, depth: number): string => {
       }
       html += `${indent4}</ul>\n`;
       html += `${indent3}</div>\n`;
-      html += `${indent2}</div>\n`;
     }
+    html += `${indent2}</div>\n`;
   }
   html += `${indent1}</div>\n`;
   html += `${indent0}</div>\n`;
   return html;
 }
 
-const toHtml = (document: any, depth: number): string => {
+const toHtml = (document: any, depth: number, o: Options): string => {
+  if (document.type == "EMBEDDED" && o.dropEmbedded) return "";
+  if (document.type == "IFRAME" && o.dropIFrame) return "";
+  if (document.type == "IMAGE" && o.dropImage) return "";
+  if (document.type == "LEARNING_TOOL" && o.dropLearningTool) return "";
+  if (document.type == "VIDEO" && o.dropVideo) return "";
   const indent0 = "  ".repeat(depth);
   const indent1 = "  ".repeat(depth + 1);
   const indent2 = "  ".repeat(depth + 2);
@@ -117,9 +124,19 @@ const toHtml = (document: any, depth: number): string => {
   if (depth == 0) {
     html += `<html>\n`;
     html += `<style type="text/css">\n`;
-    html += `img { display: none; }\n`;
-    html += `iframe { display: none; }\n`;
-    html += `video { display: none; }\n`;
+    html += `.question-answer {\n`;
+    html += `  border: 1px solid black;\n`;
+    html += `  padding: 1em;\n`;
+    html += `}\n`;
+    html += `.question {\n`;
+    html += `  margin-bottom: 1em;\n`;
+    html += `}\n`;
+    html += `.question .heading {\n`;
+    html += `  font-weight: bold;\n`;
+    html += `}\n`;
+    html += `.answer .heading {\n`;
+    html += `  font-weight: bold;\n`;
+    html += `}\n`;
     html += `</style>\n`;
     html += `<body>\n`;
   }
@@ -128,10 +145,6 @@ const toHtml = (document: any, depth: number): string => {
     const data = JSON.parse(document.data);
     if (data.display_name) {
       html += `${indent1}<h1 class="display-name">${data.display_name}</h1>\n`;
-    }
-    if (data.tag_text != undefined) {
-      data.content = data.tag_text;
-      delete data.tag_text;
     }
     if (data.content) {
       html += `${indent1}<div class="content">\n`;
@@ -156,30 +169,31 @@ const toHtml = (document: any, depth: number): string => {
   }
   if (document.children) {
     for (const child of document.children) {
-      html += toHtml(child, depth + 1);
+      html += toHtml(child, depth + 1, o);
     }
   }
   html += `${indent0}</div>\n`;
   if (depth == 0) {
-    html += `</body></html>\n`;
+    html += `</body>\n`;
+    html += `</html>\n`;
   }
   return html;
 };
 
-const toHtmls = (document: any, path: string) => {
+const toHtmls = (document: any, path: string, o: Options) => {
   if (document.type == "COURSE") {
-    return (document.children as any[]).map((x: any): any[] => toHtmls(x, path)).flat();
+    return (document.children as any[]).map((x: any): any[] => toHtmls(x, path, o)).flat();
   }
 
   const data = JSON.parse(document.data);
   if (document.type == "FOLDER") {
-    return (document.children as any[]).map((x: any): any[] => toHtmls(x, `${path}${sanitizeFilename(data.display_name.trim())}/`)).flat();
+    return (document.children as any[]).map((x: any): any[] => toHtmls(x, `${path}${sanitizeFilename(data.display_name.trim())}/`, o)).flat();
   }
 
   if (document.type == "CONTAINER") {
     return [{
       path: `${path}${sanitizeFilename(data.display_name.trim())}.html`,
-      html: toHtml(document, 0),
+      html: toHtml(document, 0, o),
     }];
   }
   return [];
@@ -234,7 +248,7 @@ const htmlify = async (o: Options) => {
 
     if (o.split) {
       console.log(chalk.green(`Generating HTML...`));
-      const outputHtmls = toHtmls(document, "/");
+      const outputHtmls = toHtmls(document, "/", o);
       for (const outputHtml of outputHtmls) {
         const outputFilePathHtml = path.join(outputPathHtml, inputFileName.replace(".json", ""), outputHtml.path);
         try { await fs.promises.mkdir(path.dirname(outputFilePathHtml), { recursive: true }); } catch { }
@@ -254,7 +268,7 @@ const htmlify = async (o: Options) => {
       const outputFileName = inputFileName.replace(".json", ".html");
 
       console.log(chalk.green(`Generating HTML...`));
-      const outputHtml = toHtml(document, 0);
+      const outputHtml = toHtml(document, 0, o);
       const outputFilePathHtml = path.join(outputPathHtml, outputFileName);
       try { await fs.promises.mkdir(path.dirname(outputFilePathHtml), { recursive: true }); } catch { }
       const outputFileHtml = await fs.promises.open(outputFilePathHtml, "w");
