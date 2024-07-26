@@ -124,6 +124,9 @@ const toHtml = (document: any, depth: number, o: Options): string => {
   if (depth == 0) {
     html += `<html>\n`;
     html += `<style type="text/css">\n`;
+    html += `body {\n`;
+    html += `  padding: 1em;\n`;
+    html += `}\n`;
     html += `.question-answer {\n`;
     html += `  border: 1px solid black;\n`;
     html += `  padding: 1em;\n`;
