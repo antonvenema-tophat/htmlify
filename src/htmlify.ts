@@ -204,16 +204,17 @@ const htmlToPdf = async (inputFilePath: string, outputFilePath: string) => {
 };
 
 const htmlify = async (o: Options) => {
-  const inputPath = path.join(__dirname, o.inputPath);
-  const outputPath = path.join(__dirname, o.outputPath);
+  const inputPath = path.join(__dirname, o.input);
+  const outputPathHtml = path.join(__dirname, o.outputHtml);
+  const outputPathPdf = path.join(__dirname, o.outputPdf);
 
-  console.log(chalk.green("Testing output directory..."));
-  try { await fs.promises.mkdir(outputPath, { recursive: true }); } catch { }
-
-  if (o.outputClean) {
-    console.log(chalk.green("Cleaning output directory..."));
-    for (const outputFileName of await fs.promises.readdir(outputPath)) {
-      await fs.promises.rm(path.join(outputPath, outputFileName), { recursive: true });
+  if (o.clean) {
+    console.log(chalk.green("Cleaning output folders..."));
+    for (const outputFileName of await fs.promises.readdir(outputPathHtml)) {
+      await fs.promises.rm(path.join(outputPathHtml, outputFileName), { recursive: true });
+    }
+    for (const outputFileName of await fs.promises.readdir(outputPathPdf)) {
+      await fs.promises.rm(path.join(outputPathPdf, outputFileName), { recursive: true });
     }
   }
 
@@ -231,21 +232,21 @@ const htmlify = async (o: Options) => {
     console.log(chalk.green(`Parsing...`));
     const document = JSON.parse(inputFile)["learning_material_data"];
 
-    if (o.outputSplit) {
+    if (o.split) {
       console.log(chalk.green(`Generating HTML...`));
       const outputHtmls = toHtmls(document, "/");
       for (const outputHtml of outputHtmls) {
-        console.log(chalk.green.italic(outputHtml.path));
-        const outputFilePath = path.join(outputPath, inputFileName.replace(".json", ""), outputHtml.path);
-        try { await fs.promises.mkdir(path.dirname(outputFilePath), { recursive: true }); } catch { }
-        const outputFile = await fs.promises.open(outputFilePath, "w");
+        const outputFilePathHtml = path.join(outputPathHtml, inputFileName.replace(".json", ""), outputHtml.path);
+        try { await fs.promises.mkdir(path.dirname(outputFilePathHtml), { recursive: true }); } catch { }
+        const outputFileHtml = await fs.promises.open(outputFilePathHtml, "w");
         try {
-          await outputFile.write(outputHtml.html);
-          await outputFile.close();
+          await outputFileHtml.write(outputHtml.html);
+          await outputFileHtml.close();
+          console.log(chalk.green.italic(outputHtml.path));
         } catch (error) {
           console.log(chalk.red(`Error: ${error}`));
-          outputFile.close();
-          await fs.promises.rm(outputFilePath);
+          outputFileHtml.close();
+          await fs.promises.rm(outputFilePathHtml);
           throw error;
         }
       }
@@ -254,41 +255,43 @@ const htmlify = async (o: Options) => {
 
       console.log(chalk.green(`Generating HTML...`));
       const outputHtml = toHtml(document, 0);
-      console.log(chalk.green.italic(outputFileName));
-      const outputFilePath = path.join(outputPath, outputFileName);
-      const outputFile = await fs.promises.open(outputFilePath, "w");
+      const outputFilePathHtml = path.join(outputPathHtml, outputFileName);
+      try { await fs.promises.mkdir(path.dirname(outputFilePathHtml), { recursive: true }); } catch { }
+      const outputFileHtml = await fs.promises.open(outputFilePathHtml, "w");
       try {
-        await outputFile.write(outputHtml);
-        await outputFile.close();
+        await outputFileHtml.write(outputHtml);
+        await outputFileHtml.close();
+        console.log(chalk.green.italic(outputFileName));
       } catch (error) {
         console.log(chalk.red(error));
-        outputFile.close();
-        try { await fs.promises.rm(outputFilePath); } catch { }
+        outputFileHtml.close();
+        try { await fs.promises.rm(outputFilePathHtml); } catch { }
         throw error;
       }
     }
   }
 
-  if (o.outputPdf) {
+  if (!o.noPdf) {
     console.log();
     console.log(chalk.blue.bold("HTML --> PDF"));
 
-    for (const outputFileName of await fs.promises.readdir(outputPath, { recursive: true, })) {
-      if (!outputFileName.endsWith(".html")) continue;
-      const outputFileNamePdf = outputFileName.replace(".html", ".pdf");
+    for (const outputFileNameHtml of await fs.promises.readdir(outputPathHtml, { recursive: true, })) {
+      if (!outputFileNameHtml.endsWith(".html")) continue;
+      const outputFileNamePdf = outputFileNameHtml.replace(".html", ".pdf");
 
       console.log();
-      console.log(chalk.green.bold(outputFileName));
-      const outputFilePathPdf = path.join(outputPath, outputFileNamePdf);
+      console.log(chalk.green.bold(outputFileNameHtml));
+      const outputFilePathPdf = path.join(outputPathPdf, outputFileNamePdf);
       if (o.continue && fs.existsSync(outputFilePathPdf)) {
         console.log(chalk.green(`Skipping PDF...`));
         console.log(chalk.green.italic(outputFileNamePdf));
         continue;
       }
       console.log(chalk.green(`Generating PDF...`));
-      console.log(chalk.green.italic(outputFileNamePdf));
+      try { await fs.promises.mkdir(path.dirname(outputFilePathPdf), { recursive: true }); } catch { }
       try {
-        await htmlToPdf(path.join(outputPath, outputFileName), outputFilePathPdf);
+        await htmlToPdf(path.join(outputPathHtml, outputFileNameHtml), outputFilePathPdf);
+        console.log(chalk.green.italic(outputFileNamePdf));
       } catch (error) {
         console.log(chalk.red(error));
         try { await fs.promises.rm(outputFilePathPdf); } catch { }

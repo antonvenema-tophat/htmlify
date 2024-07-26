@@ -9,10 +9,11 @@ npm run start
 
 ### Options
 ```
-  -i, --input <PATH>   Input JSON directory. (default: "./assets")
-  -o, --output <PATH>  Output HTML/PDF directory. (default: "./assets/out")
-  --clean              Delete content in the output directory before starting.
-  --continue           Resume from a failed operation. (Skips regeneration of existing output files.)
-  --pdf                Convert HTML in the output directory to PDF.
-  --split              Split the course content into multiple output files (one per page).
+  --input <PATH>        Path to folder containing input JSON files. (default: "./assets")
+  --output-html <PATH>  Path to folder for output HTML files. (default: "./out/html")
+  --output-pdf <PATH>   Path to folder for output PDF files. (default: "./out/pdf")
+  --clean               Delete content in the output folders before starting.
+  --continue            Resume from a failed operation. (Skips regeneration of existing output files.)
+  --no-pdf              Skips PDF generation.
+  --split               Split the course content into multiple output files (one per page).
 ```

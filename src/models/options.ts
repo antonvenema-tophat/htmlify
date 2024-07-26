@@ -1,8 +1,9 @@
 interface Options {
+  clean: boolean;
   continue: boolean;
-  inputPath: string;
-  outputClean: boolean;
-  outputPath: string;
-  outputPdf: boolean;
-  outputSplit: boolean;
+  input: string;
+  noPdf: boolean;
+  outputHtml: string;
+  outputPdf: string;
+  split: boolean;
 }
