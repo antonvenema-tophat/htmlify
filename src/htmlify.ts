@@ -253,13 +253,14 @@ const htmlify = async (o: Options) => {
       console.log(chalk.green(`Generating HTML...`));
       const outputHtmls = toHtmls(document, "/", o);
       for (const outputHtml of outputHtmls) {
-        const outputFilePathHtml = path.join(outputPathHtml, inputFileName.replace(".json", ""), outputHtml.path);
+        const outputFileName = path.join(inputFileName.replace(".json", ""), outputHtml.path).replaceAll(path.sep, '-');
+        const outputFilePathHtml = path.join(outputPathHtml, outputFileName);
         try { await fs.promises.mkdir(path.dirname(outputFilePathHtml), { recursive: true }); } catch { }
         const outputFileHtml = await fs.promises.open(outputFilePathHtml, "w");
         try {
           await outputFileHtml.write(outputHtml.html);
           await outputFileHtml.close();
-          console.log(chalk.green.italic(outputHtml.path));
+          console.log(chalk.green.italic(outputFileName));
         } catch (error) {
           console.log(chalk.red(`Error: ${error}`));
           outputFileHtml.close();
@@ -288,7 +289,7 @@ const htmlify = async (o: Options) => {
     }
   }
 
-  if (!o.noPdf) {
+  if (o.pdf) {
     console.log();
     console.log(chalk.blue.bold("HTML --> PDF"));
 

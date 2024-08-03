@@ -31,9 +31,9 @@ const options = program.opts();
     dropLearningTool: options.dropLearningTool ? true : false,
     dropVideo: options.dropVideo ? true : false,
     input: options.input,
-    noPdf: options.noPdf ? true : false,
     outputHtml: options.outputHtml,
     outputPdf: options.outputPdf,
+    pdf: options.pdf ? true : false,
     split: options.split ? true : false,
   });
 })();

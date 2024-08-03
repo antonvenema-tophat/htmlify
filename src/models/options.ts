@@ -7,8 +7,8 @@ interface Options {
   dropLearningTool: boolean;
   dropVideo: boolean;
   input: string;
-  noPdf: boolean;
   outputHtml: string;
   outputPdf: string;
+  pdf: boolean;
   split: boolean;
 }
