@@ -274,22 +274,33 @@ const htmlify = async (o: Options) => {
         // create directory if it doesn't exist
         await createPathForFilePath(htmlFilePath);
 
-        // write HTML and metadata
-        const metadataFile = await fs.promises.open(metadataFilePath, "w");
+        // maybe write AWS metadata
+        if (o.awsMetadata) {
+          const metadataFile = await fs.promises.open(metadataFilePath, "w");
+          try {
+            await metadataFile.write(JSON.stringify({
+              metadataAttributes: {
+                lineageId: page.lineageId,
+              },
+            }));
+            await metadataFile.close();
+            console.log(chalk.green.italic(metadataFileName));
+          } catch (error) {
+            console.log(chalk.red(`Error: ${error}`));
+            metadataFile.close();
+            await fs.promises.rm(metadataFilePath);
+            throw error;
+          }
+        }
+
+        // write HTML
         const htmlFile = await fs.promises.open(htmlFilePath, "w");
         try {
-          await metadataFile.write(JSON.stringify({
-            metadataAttributes: {
-              lineageId: page.lineageId,
-            },
-          }));
-          await metadataFile.close();
           await htmlFile.write(page.html);
           await htmlFile.close();
           console.log(chalk.green.italic(htmlFileName));
         } catch (error) {
           console.log(chalk.red(`Error: ${error}`));
-          metadataFile.close();
           htmlFile.close();
           await fs.promises.rm(htmlFilePath);
           throw error;
@@ -338,7 +349,7 @@ const htmlify = async (o: Options) => {
       // create directory if it doesn't exist
       await createPathForFilePath(pdfFilePath);
 
-      // copy JSON metadata if file exists
+      // copy AWS metadata if file exists
       if (fs.existsSync(metadataFilePathSource)) {
         await fs.promises.copyFile(metadataFilePathSource, metadataFilePathTarget);
       }

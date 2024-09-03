@@ -1,4 +1,5 @@
 interface Options {
+  awsMetadata: boolean;
   clean: boolean;
   continue: boolean;
   dropEmbedded: boolean;

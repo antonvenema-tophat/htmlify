@@ -13,6 +13,7 @@ program
   .option("--drop-image", "Drops IMAGE content while converting.")
   .option("--drop-learning-tool", "Drops LEARNING_TOOL content while converting.")
   .option("--drop-video", "Drops VIDEO content while converting.")
+  .option("--no-aws-metadata", "Skips AWS metadata generation.")
   .option("--no-pdf", "Skips PDF generation.")
   .option("--split", "Split the course content into multiple output files (one per page).")
   .description("CLI to convert course content from a JSON export to HTML.");
@@ -23,6 +24,7 @@ const options = program.opts();
 
 (async () => {
   await htmlify({
+    awsMetadata: options.awsMetadata ? true : false,
     clean: options.clean ? true : false,
     continue: options.continue ? true : false,
     dropEmbedded: options.dropEmbedded ? true : false,
