@@ -268,15 +268,15 @@ const htmlify = async (o: Options) => {
       for (const page of pages) {
         const htmlFileName = path.join(jsonFileName.replace(".json", ""), page.path).replaceAll(path.sep, '-');
         const htmlFilePath = path.join(htmlPath, htmlFileName);
-        const metadataFileName = htmlFileName.replace(".html", ".metadata.json");
-        const metadataFilePath = path.join(htmlPath, metadataFileName);
+        const htmlMetadataFileName = htmlFileName.replace(".html", ".html.metadata.json");
+        const htmlMetadataFilePath = path.join(htmlPath, htmlMetadataFileName);
 
         // create directory if it doesn't exist
         await createPathForFilePath(htmlFilePath);
 
         // maybe write AWS metadata
         if (o.awsMetadata) {
-          const metadataFile = await fs.promises.open(metadataFilePath, "w");
+          const metadataFile = await fs.promises.open(htmlMetadataFilePath, "w");
           try {
             await metadataFile.write(JSON.stringify({
               metadataAttributes: {
@@ -284,11 +284,11 @@ const htmlify = async (o: Options) => {
               },
             }));
             await metadataFile.close();
-            console.log(chalk.green.italic(metadataFileName));
+            console.log(chalk.green.italic(htmlMetadataFileName));
           } catch (error) {
             console.log(chalk.red(`Error: ${error}`));
             metadataFile.close();
-            await fs.promises.rm(metadataFilePath);
+            await fs.promises.rm(htmlMetadataFilePath);
             throw error;
           }
         }
@@ -340,18 +340,19 @@ const htmlify = async (o: Options) => {
     for (const htmlFileName of await fs.promises.readdir(htmlPath, { recursive: true })) {
       if (!htmlFileName.endsWith(".html")) continue;
       const htmlFilePath = path.join(htmlPath, htmlFileName);
-      const metadataFileName = htmlFileName.replace(".html", ".metadata.json");
-      const metadataFilePathSource = path.join(htmlPath, metadataFileName);
-      const metadataFilePathTarget = path.join(pdfPath, metadataFileName);
+      const htmlMetadataFileName = htmlFileName.replace(".html", ".html.metadata.json");
+      const htmlMetadataFilePath = path.join(htmlPath, htmlMetadataFileName);
       const pdfFileName = htmlFileName.replace(".html", ".pdf");
       const pdfFilePath = path.join(pdfPath, pdfFileName);
+      const pdfMetadataFileName = pdfFileName.replace(".pdf", ".pdf.metadata.json");
+      const pdfMetadataFilePath = path.join(pdfPath, pdfMetadataFileName);
 
       // create directory if it doesn't exist
       await createPathForFilePath(pdfFilePath);
 
       // copy AWS metadata if file exists
-      if (fs.existsSync(metadataFilePathSource)) {
-        await fs.promises.copyFile(metadataFilePathSource, metadataFilePathTarget);
+      if (fs.existsSync(htmlMetadataFilePath)) {
+        await fs.promises.copyFile(htmlMetadataFilePath, pdfMetadataFilePath);
       }
 
       // maybe skip PDF if it already exists
