@@ -1,0 +1,27 @@
+{
+  "definitions": {
+    "courseNode": {
+      "properties": {
+        "data": { "enum": [ "{}" ] },
+        "hash": { "type": "string" },
+        "children": { "elements": { "type": "node" } },
+        "lineage_id": { "type": "string" },
+        "marketplace_lm_id": { "type": "string" },
+        "type": { "enum": [ "COURSE" ] }
+      }
+    },
+    "node": {
+      "properties": {
+        "data": { "type": "string" },
+        "hash": { "type": "string" },
+        "children": { "elements": { "type": "node" } },
+        "lineage_id": { "type": "string" },
+        "marketplace_lm_id": { "type": "string" },
+        "type": { "enum": [ "HTML", "IFRAME", "IMAGE", "EMBEDDED", "LEARNING_TOOL", "VIDEO", "FOLDER", "CONTAINER" ] }
+      }
+    }
+  },
+	"properties": {
+		"learning_material_data": { "type": "courseNode" }
+	}
+}
