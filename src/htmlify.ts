@@ -163,7 +163,7 @@ const toHtml = (document: any, depth: number, o: Options): string => {
 
     // maybe write GCP metadata
     if (document.type == "CONTAINER" && o.gcpMetadata) {
-      html += `${indent1}<div class="tophat-metadata">{TOPHAT_CONTAINER_LINEAGEID:${document.lineage_id}}</div>\n`;
+      html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_LINEAGEID:${document.lineage_id}}</div>\n`;
       if (data.display_name) {
         html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_TITLE:${data.display_name}}</div>\n`;
       }
