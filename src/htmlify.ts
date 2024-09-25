@@ -170,10 +170,6 @@ const toHtml = (document: any, depth: number, o: Options, chapterConfig: Chapter
   // maybe write GCP metadata
   const gcpMetadata = o.gcpMetadata && document.type == chapterConfig.contentType && depth == chapterConfig.depth && data.display_name && /\d+/.test(data.display_name);
 
-  if (gcpMetadata) {
-    console.error(data.display_name);
-  }
-
   if (data) {
     if (gcpMetadata) {
       html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_LINEAGEID:${document.lineage_id}}</div>\n`;
