@@ -8,6 +8,7 @@ interface Page {
   html: string;
   lineageId: string;
   path: string;
+  title: string;
 }
 
 const createPathForFilePath = async (filePath: string) => {
@@ -150,12 +151,24 @@ const toHtml = (document: any, depth: number, o: Options): string => {
     html += `.answer .heading {\n`;
     html += `  font-weight: bold;\n`;
     html += `}\n`;
+    html += `.tophat-metadata {\n`;
+    html += `  font-style: italic;\n`;
+    html += `}\n`;
     html += `</style>\n`;
     html += `<body>\n`;
   }
   html += `${indent0}<div>\n`;
   if (document.data != "{}") {
     const data = JSON.parse(document.data);
+
+    // maybe write GCP metadata
+    if (document.type == "CONTAINER" && o.gcpMetadata) {
+      html += `${indent1}<div class="tophat-metadata">{TOPHAT_CONTAINER_LINEAGEID:${document.lineage_id}}</div>\n`;
+      if (data.display_name) {
+        html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_TITLE:${data.display_name}}</div>\n`;
+      }
+    }
+
     if (data.display_name) {
       html += `${indent1}<h1 class="display-name">${data.display_name}</h1>\n`;
     }
@@ -208,6 +221,7 @@ const toPages = (document: any, path: string, o: Options): Page[] => {
       html: toHtml(document, 0, o),
       lineageId: document.lineage_id,
       path: `${path}${sanitizeFilename(data.display_name.trim())}.html`,
+      title: JSON.parse(document.data)?.display_name ?? undefined,
     }];
   }
   return [];
@@ -281,6 +295,7 @@ const htmlify = async (o: Options) => {
             await metadataFile.write(JSON.stringify({
               metadataAttributes: {
                 lineageId: page.lineageId,
+                title: page.title,
               },
             }));
             await metadataFile.close();

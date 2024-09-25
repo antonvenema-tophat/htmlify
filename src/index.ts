@@ -14,8 +14,10 @@ program
   .option("--drop-learning-tool", "Drops LEARNING_TOOL content while converting.")
   .option("--drop-video", "Drops VIDEO content while converting.")
   .option("--no-aws-metadata", "Skips AWS metadata generation.")
+  .option("--no-gcp-metadata", "Skips GCP metadata generation.")
   .option("--no-pdf", "Skips PDF generation.")
   .option("--split", "Split the course content into multiple output files (one per page).")
+  .option("--text-only", "Drop all non-text content while converting.")
   .description("CLI to convert course content from a JSON export to HTML.");
 
 program.parse();
@@ -27,11 +29,12 @@ const options = program.opts();
     awsMetadata: options.awsMetadata ? true : false,
     clean: options.clean ? true : false,
     continue: options.continue ? true : false,
-    dropEmbedded: options.dropEmbedded ? true : false,
-    dropIFrame: options.dropIframe ? true : false,
-    dropImage: options.dropImage ? true : false,
-    dropLearningTool: options.dropLearningTool ? true : false,
-    dropVideo: options.dropVideo ? true : false,
+    dropEmbedded: options.textOnly || options.dropEmbedded ? true : false,
+    dropIFrame: options.textOnly || options.dropIframe ? true : false,
+    dropImage: options.textOnly || options.dropImage ? true : false,
+    dropLearningTool: options.textOnly || options.dropLearningTool ? true : false,
+    dropVideo: options.textOnly || options.dropVideo ? true : false,
+    gcpMetadata: options.gcpMetadata ? true : false,
     input: options.input,
     outputHtml: options.outputHtml,
     outputPdf: options.outputPdf,

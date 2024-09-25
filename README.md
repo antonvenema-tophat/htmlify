@@ -20,6 +20,8 @@ npm run start
   --drop-learning-tool  Drops LEARNING_TOOL content while converting.
   --drop-video          Drops VIDEO content while converting.
   --no-aws-metadata     Skips AWS metadata generation.
+  --no-gcp-metadata     Skips GCP metadata generation.
   --no-pdf              Skips PDF generation.
   --split               Split the course content into multiple output files (one per page).
+  --text-only           Drop all non-text content while converting.
 ```

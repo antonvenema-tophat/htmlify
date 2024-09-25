@@ -7,6 +7,7 @@ interface Options {
   dropImage: boolean;
   dropLearningTool: boolean;
   dropVideo: boolean;
+  gcpMetadata: boolean;
   input: string;
   outputHtml: string;
   outputPdf: string;
