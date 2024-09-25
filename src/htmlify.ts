@@ -163,18 +163,21 @@ const toHtml = (document: any, depth: number, o: Options, chapterConfig: Chapter
     html += `<body>\n`;
   }
   html += `${indent0}<div>\n`;
-  if (document.data != "{}") {
-    const data = JSON.parse(document.data);
 
-    // maybe write GCP metadata
-    if (o.gcpMetadata) {
-      if (document.type == chapterConfig.contentType && depth == chapterConfig.depth) {
-        html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_LINEAGEID:${document.lineage_id}}</div>\n`;
-        if (data.display_name) {
-          console.error(data.display_name);
-          html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_TITLE:${data.display_name}}</div>\n`;
-        }
-      }
+  // extract node data
+  const data = document.data == "{}" ? null : JSON.parse(document.data);
+
+  // maybe write GCP metadata
+  const gcpMetadata = o.gcpMetadata && document.type == chapterConfig.contentType && depth == chapterConfig.depth && data.display_name && /\d+/.test(data.display_name);
+
+  if (gcpMetadata) {
+    console.error(data.display_name);
+  }
+
+  if (data) {
+    if (gcpMetadata) {
+      html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_LINEAGEID:${document.lineage_id}}</div>\n`;
+      html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_TITLE:${data.display_name}}</div>\n`;
     }
 
     if (data.display_name) {
@@ -206,6 +209,12 @@ const toHtml = (document: any, depth: number, o: Options, chapterConfig: Chapter
       html += toHtml(child, depth + 1, o, chapterConfig);
     }
   }
+
+  // maybe write GCP metadata
+  if (gcpMetadata) {
+    html += `${indent1}<div class="tophat-metadata">{/TOPHAT_CHAPTER_LINEAGEID:${document.lineage_id}}</div>\n`;
+  }
+
   html += `${indent0}</div>\n`;
   if (depth == 0) {
     html += `</body>\n`;
