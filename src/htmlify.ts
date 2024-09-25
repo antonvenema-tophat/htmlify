@@ -11,6 +11,11 @@ interface Page {
   title: string;
 }
 
+interface ChapterConfig {
+  contentType: string;
+  depth: number;
+}
+
 const createPathForFilePath = async (filePath: string) => {
   try { await fs.promises.mkdir(path.dirname(filePath), { recursive: true }); } catch { }
 }
@@ -122,7 +127,7 @@ const processQuestion = (data: any, depth: number): string => {
   return html;
 }
 
-const toHtml = (document: any, depth: number, o: Options): string => {
+const toHtml = (document: any, depth: number, o: Options, chapterConfig: ChapterConfig): string => {
   if (document.type == "EMBEDDED" && o.dropEmbedded) return "";
   if (document.type == "IFRAME" && o.dropIFrame) return "";
   if (document.type == "IMAGE" && o.dropImage) return "";
@@ -162,10 +167,13 @@ const toHtml = (document: any, depth: number, o: Options): string => {
     const data = JSON.parse(document.data);
 
     // maybe write GCP metadata
-    if (document.type == "CONTAINER" && o.gcpMetadata) {
-      html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_LINEAGEID:${document.lineage_id}}</div>\n`;
-      if (data.display_name) {
-        html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_TITLE:${data.display_name}}</div>\n`;
+    if (o.gcpMetadata) {
+      if (document.type == chapterConfig.contentType && depth == chapterConfig.depth) {
+        html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_LINEAGEID:${document.lineage_id}}</div>\n`;
+        if (data.display_name) {
+          console.error(data.display_name);
+          html += `${indent1}<div class="tophat-metadata">{TOPHAT_CHAPTER_TITLE:${data.display_name}}</div>\n`;
+        }
       }
     }
 
@@ -195,7 +203,7 @@ const toHtml = (document: any, depth: number, o: Options): string => {
   }
   if (document.children) {
     for (const child of document.children) {
-      html += toHtml(child, depth + 1, o);
+      html += toHtml(child, depth + 1, o, chapterConfig);
     }
   }
   html += `${indent0}</div>\n`;
@@ -206,19 +214,19 @@ const toHtml = (document: any, depth: number, o: Options): string => {
   return html;
 };
 
-const toPages = (document: any, path: string, o: Options): Page[] => {
+const toPages = (document: any, path: string, o: Options, chapterConfig: ChapterConfig): Page[] => {
   if (document.type == "COURSE") {
-    return (document.children as any[]).map((x: any): any[] => toPages(x, path, o)).flat();
+    return (document.children as any[]).map((x: any): any[] => toPages(x, path, o, chapterConfig)).flat();
   }
 
   const data = JSON.parse(document.data);
   if (document.type == "FOLDER") {
-    return (document.children as any[]).map((x: any): any[] => toPages(x, `${path}${sanitizeFilename(data.display_name.trim())}/`, o)).flat();
+    return (document.children as any[]).map((x: any): any[] => toPages(x, `${path}${sanitizeFilename(data.display_name.trim())}/`, o, chapterConfig)).flat();
   }
 
   if (document.type == "CONTAINER") {
     return [{
-      html: toHtml(document, 0, o),
+      html: toHtml(document, 0, o, chapterConfig),
       lineageId: document.lineage_id,
       path: `${path}${sanitizeFilename(data.display_name.trim())}.html`,
       title: JSON.parse(document.data)?.display_name ?? undefined,
@@ -275,10 +283,23 @@ const htmlify = async (o: Options) => {
     console.log(chalk.green(`Parsing...`));
     const document = JSON.parse(json)["learning_material_data"];
 
+    // identify chapter depth and content type
+    let node = document;
+    const chapterConfig: ChapterConfig = {
+      contentType: "COURSE",
+      depth: 0,
+    };
+    while (node.children.length) {
+      chapterConfig.depth++;
+      chapterConfig.contentType = node.children[Math.floor(node.children.length / 2)].type;
+      if (node.children.length > 1) break;
+      node = node.children[0];
+    }
+
+    // generate HTML
+    console.log(chalk.green(`Generating HTML (Chapter Depth: ${chapterConfig.depth}, Chapter Content Type: ${chapterConfig.contentType})...`));
     if (o.split) {
-      // generate HTML and metadata
-      console.log(chalk.green(`Generating HTML...`));
-      const pages = toPages(document, "/", o);
+      const pages = toPages(document, "/", o, chapterConfig);
       for (const page of pages) {
         const htmlFileName = path.join(jsonFileName.replace(".json", ""), page.path).replaceAll(path.sep, '-');
         const htmlFilePath = path.join(htmlPath, htmlFileName);
@@ -322,9 +343,7 @@ const htmlify = async (o: Options) => {
         }
       }
     } else {
-      // generate HTML
-      console.log(chalk.green(`Generating HTML...`));
-      const html = toHtml(document, 0, o);
+      const html = toHtml(document, 0, o, chapterConfig);
       const htmlFileName = jsonFileName.replace(".json", ".html");
       const htmlFilePath = path.join(htmlPath, htmlFileName);
 
