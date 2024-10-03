@@ -259,114 +259,133 @@ const htmlToPdf = async (htmlFilePath: string, pdfFilePath: string) => {
 };
 
 const htmlify = async (o: Options) => {
-  const jsonPath = path.join(__dirname, o.input);
-  const htmlPath = path.join(__dirname, o.outputHtml);
-  const pdfPath = path.join(__dirname, o.outputPdf);
+  const cachePath = path.join(__dirname, o.output, "cache");
+  const htmlPath = path.join(__dirname, o.output, "html", o.discipline);
+  const pdfPath = path.join(__dirname, o.output, "pdf", o.discipline);
 
-  // maybe delete the contents of the output folders
-  if (o.clean) {
-    console.log(chalk.green("Cleaning output folders..."));
-    for (const htmlFileName of await fs.promises.readdir(htmlPath)) {
-      await fs.promises.rm(path.join(htmlPath, htmlFileName), { recursive: true });
+  const jsonFileName = `${o.cip}.json`;
+  const cacheFilePath = path.join(cachePath, jsonFileName);
+
+  console.log();
+  let json = null;
+  if (o.cache) {
+    try {
+      console.log(chalk.magenta(`Reading CIP ${o.cip} from cache...`));
+      json = await fs.promises.readFile(cacheFilePath, "utf-8");
+    } catch { }
+  }
+
+  if (!json) {
+    console.log(chalk.magenta(`Reading CIP ${o.cip} from API...`));
+    const jsonResponse = await fetch(`https://app.tophat.com/api/content/context/5/learning_material/${o.cip}/`, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+        "Authorization": `Bearer ${o.token}`,
+      }
+    });
+    if (jsonResponse.status != 200) {
+      console.log(chalk.red(`Error: ${jsonResponse.status}`));
+      return;
     }
-    for (const pdfFileName of await fs.promises.readdir(pdfPath)) {
-      await fs.promises.rm(path.join(pdfPath, pdfFileName), { recursive: true });
+    json = await jsonResponse.text();
+
+    if (o.cache) {
+
+      // create directory if it doesn't exist
+      await createPathForFilePath(cacheFilePath);
+
+      console.log(chalk.magenta(`Writing CIP ${o.cip} to cache...`));
+      await fs.promises.writeFile(cacheFilePath, json);
     }
   }
 
   // generate HTML
   console.log();
   console.log(chalk.blue.bold("JSON --> HTML"));
-  for (const jsonFileName of await fs.promises.readdir(jsonPath)) {
-    if (!jsonFileName.endsWith(".json")) continue;
 
-    console.log();
-    console.log(chalk.green.bold(jsonFileName));
-    console.log(chalk.green(`Reading...`));
-    const json = await fs.promises.readFile(path.join(jsonPath, jsonFileName), "utf-8");
+  console.log();
+  console.log(chalk.green(`Parsing...`));
+  const document = JSON.parse(json)["learning_material_data"];
 
-    console.log(chalk.green(`Parsing...`));
-    const document = JSON.parse(json)["learning_material_data"];
+  // identify chapter depth and content type
+  let node = document;
+  const chapterConfig: ChapterConfig = {
+    contentType: "COURSE",
+    depth: 0,
+  };
+  while (node.children.length) {
+    chapterConfig.depth++;
+    chapterConfig.contentType = node.children[Math.floor(node.children.length / 2)].type;
+    if (node.children.length > 1) break;
+    node = node.children[0];
+  }
 
-    // identify chapter depth and content type
-    let node = document;
-    const chapterConfig: ChapterConfig = {
-      contentType: "COURSE",
-      depth: 0,
-    };
-    while (node.children.length) {
-      chapterConfig.depth++;
-      chapterConfig.contentType = node.children[Math.floor(node.children.length / 2)].type;
-      if (node.children.length > 1) break;
-      node = node.children[0];
-    }
-
-    // generate HTML
-    console.log(chalk.green(`Generating HTML (Chapter Depth: ${chapterConfig.depth}, Chapter Content Type: ${chapterConfig.contentType})...`));
-    if (o.split) {
-      const pages = toPages(document, "/", o, chapterConfig);
-      for (const page of pages) {
-        const htmlFileName = path.join(jsonFileName.replace(".json", ""), page.path).replaceAll(path.sep, '-');
-        const htmlFilePath = path.join(htmlPath, htmlFileName);
-        const htmlMetadataFileName = htmlFileName.replace(".html", ".html.metadata.json");
-        const htmlMetadataFilePath = path.join(htmlPath, htmlMetadataFileName);
-
-        // create directory if it doesn't exist
-        await createPathForFilePath(htmlFilePath);
-
-        // maybe write AWS metadata
-        if (o.awsMetadata) {
-          const metadataFile = await fs.promises.open(htmlMetadataFilePath, "w");
-          try {
-            await metadataFile.write(JSON.stringify({
-              metadataAttributes: {
-                lineageId: page.lineageId,
-                title: page.title,
-              },
-            }));
-            await metadataFile.close();
-            console.log(chalk.green.italic(htmlMetadataFileName));
-          } catch (error) {
-            console.log(chalk.red(`Error: ${error}`));
-            metadataFile.close();
-            await fs.promises.rm(htmlMetadataFilePath);
-            throw error;
-          }
-        }
-
-        // write HTML
-        const htmlFile = await fs.promises.open(htmlFilePath, "w");
-        try {
-          await htmlFile.write(page.html);
-          await htmlFile.close();
-          console.log(chalk.green.italic(htmlFileName));
-        } catch (error) {
-          console.log(chalk.red(`Error: ${error}`));
-          htmlFile.close();
-          await fs.promises.rm(htmlFilePath);
-          throw error;
-        }
-      }
-    } else {
-      const html = toHtml(document, 0, o, chapterConfig);
-      const htmlFileName = jsonFileName.replace(".json", ".html");
+  // generate HTML
+  console.log(chalk.green(`Generating HTML (Chapter Depth: ${chapterConfig.depth}, Chapter Content Type: ${chapterConfig.contentType})...`));
+  if (o.split) {
+    const pages = toPages(document, "/", o, chapterConfig);
+    for (const page of pages) {
+      const htmlFileName = path.join(jsonFileName.replace(".json", ""), page.path).replaceAll(path.sep, ".");
       const htmlFilePath = path.join(htmlPath, htmlFileName);
+      const htmlMetadataFileName = htmlFileName.replace(".html", ".html.metadata.json");
+      const htmlMetadataFilePath = path.join(htmlPath, htmlMetadataFileName);
 
       // create directory if it doesn't exist
       await createPathForFilePath(htmlFilePath);
 
+      // maybe write AWS metadata
+      if (o.awsMetadata) {
+        const metadataFile = await fs.promises.open(htmlMetadataFilePath, "w");
+        try {
+          await metadataFile.write(JSON.stringify({
+            metadataAttributes: {
+              lineageId: page.lineageId,
+              title: page.title,
+            },
+          }));
+          await metadataFile.close();
+          console.log(chalk.green.italic(htmlMetadataFileName));
+        } catch (error) {
+          console.log(chalk.red(`Error: ${error}`));
+          metadataFile.close();
+          await fs.promises.rm(htmlMetadataFilePath);
+          throw error;
+        }
+      }
+
       // write HTML
       const htmlFile = await fs.promises.open(htmlFilePath, "w");
       try {
-        await htmlFile.write(html);
+        await htmlFile.write(page.html);
         await htmlFile.close();
         console.log(chalk.green.italic(htmlFileName));
       } catch (error) {
-        console.log(chalk.red(error));
+        console.log(chalk.red(`Error: ${error}`));
         htmlFile.close();
-        try { await fs.promises.rm(htmlFilePath); } catch { }
+        await fs.promises.rm(htmlFilePath);
         throw error;
       }
+    }
+  } else {
+    const html = toHtml(document, 0, o, chapterConfig);
+    const htmlFileName = jsonFileName.replace(".json", ".html");
+    const htmlFilePath = path.join(htmlPath, htmlFileName);
+
+    // create directory if it doesn't exist
+    await createPathForFilePath(htmlFilePath);
+
+    // write HTML
+    const htmlFile = await fs.promises.open(htmlFilePath, "w");
+    try {
+      await htmlFile.write(html);
+      await htmlFile.close();
+      console.log(chalk.green.italic(htmlFileName));
+    } catch (error) {
+      console.log(chalk.red(error));
+      htmlFile.close();
+      try { await fs.promises.rm(htmlFilePath); } catch { }
+      throw error;
     }
   }
 
@@ -378,6 +397,7 @@ const htmlify = async (o: Options) => {
     // use HTML output as input
     for (const htmlFileName of await fs.promises.readdir(htmlPath, { recursive: true })) {
       if (!htmlFileName.endsWith(".html")) continue;
+      if (!htmlFileName.startsWith(`${o.cip}.`)) continue;
       const htmlFilePath = path.join(htmlPath, htmlFileName);
       const htmlMetadataFileName = htmlFileName.replace(".html", ".html.metadata.json");
       const htmlMetadataFilePath = path.join(htmlPath, htmlMetadataFileName);

@@ -1,16 +1,17 @@
 interface Options {
   awsMetadata: boolean;
-  clean: boolean;
+  cache: boolean;
+  cip: string;
   continue: boolean;
+  discipline: string;
   dropEmbedded: boolean;
   dropIFrame: boolean;
   dropImage: boolean;
   dropLearningTool: boolean;
   dropVideo: boolean;
   gcpMetadata: boolean;
-  input: string;
-  outputHtml: string;
-  outputPdf: string;
+  output: string;
   pdf: boolean;
   split: boolean;
+  token: string;
 }
